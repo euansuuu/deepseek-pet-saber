@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-saber-pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Saber 桌宠：栖息在 DeepSeek Harness 窗口里的精灵动画骑士助手，随会话状态起舞。",
   "license": "MIT",
@@ -8,7 +8,10 @@
   "homepage": "https://github.com/euansuuu/deepseek-pet-saber#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/euansuuu/dsh-plugin-saber-pet.git"
+    "url": "git+https://github.com/euansuuu/deepseek-pet-saber.git"
+  },
+  "bugs": {
+    "url": "https://github.com/euansuuu/deepseek-pet-saber/issues"
   },
   "keywords": [
     "dsh",
@@ -44,6 +47,7 @@
     "docs/DETAIL.md",
     "docs/DETAIL.zh.md",
     "docs/preview.png",
+    "docs/images/*.gif",
     "README.md"
   ],
   "dsh": {
