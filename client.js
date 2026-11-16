@@ -11,13 +11,9 @@ window.__ModuleLoader__.load({
     const DEFAULT_SCALE = 1.05;
     const SCALE_MIN = 0.6;
     const SCALE_MAX = 1.75;
-    const SCALE_PRESETS = [
-      { label: '小', value: 0.75 },
-      { label: '标准', value: 1.05 },
-      { label: '大', value: 1.4 },
-    ];
     const POS_KEY = 'saber-pet:pos';
     const SCALE_KEY = 'saber-pet:scale';
+    const COLLAPSED_KEY = 'saber-pet:collapsed';
 
     // 动作编排迁移自 codex-saber 的 animation.json v1（每行一个动作）。
     const ANIMATIONS = {
@@ -35,18 +31,24 @@ window.__ModuleLoader__.load({
 
     const STRINGS = {
       zh: {
-        greeting: 'Master，Saber 已就位。拖动可移动我，滚轮或按钮可调整大小。',
+        greeting: 'Master，Saber 已就位。拖动可移动我，滚轮可调整大小。',
         working: '正在挥剑执行任务……',
         waiting: '等待 Master 的指示或确认。',
         celebrate: '任务完成，举剑庆祝！',
-        tip: '我是栖息在 Harness 里的 Saber。',
+        panelTitle: 'Saber · 桌宠',
+        sizeLabel: '显示大小',
+        collapse: '收起 Saber',
+        recall: '唤回 Saber ↗',
       },
       en: {
-        greeting: 'Master, Saber reporting in. Drag me around; wheel or buttons resize me.',
+        greeting: 'Master, Saber reporting in. Drag me around; the scroll wheel resizes me.',
         working: 'Swinging the sword — task in progress…',
         waiting: 'Awaiting your input or confirmation, Master.',
         celebrate: 'Task complete — raising the sword!',
-        tip: 'I am Saber, living in your Harness.',
+        panelTitle: 'Saber · Pet',
+        sizeLabel: 'Size',
+        collapse: 'Hide Saber',
+        recall: 'Recall Saber ↗',
       },
     };
 
@@ -56,7 +58,7 @@ window.__ModuleLoader__.load({
 
     const clampScale = (value) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, value));
 
-    /** 命令式桌宠部件：Shadow DOM 隔离 + rAF 动画引擎 + 拖拽/悬停/缩放交互。 */
+    /** 命令式桌宠部件：Shadow DOM 隔离 + rAF 动画引擎 + 拖拽/悬停/滚轮缩放/右键面板。 */
     class SaberWidget {
       constructor(host, { language }) {
         this.host = host;
@@ -73,6 +75,7 @@ window.__ModuleLoader__.load({
         this.busyElapsed = 0;
         this.currentAnim = null;
         this.currentElapsed = 0;
+        this.collapsed = false;
         this.lastFrame = performance.now();
         this.hideTimer = 0;
 
@@ -80,7 +83,14 @@ window.__ModuleLoader__.load({
         this.root = root;
         const style = document.createElement('style');
         style.textContent = `
-          :host { all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 29; }
+          :host {
+            all: initial;
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 29;
+            color-scheme: inherit;
+          }
           * { box-sizing: border-box; }
           .pet {
             position: absolute;
@@ -96,14 +106,13 @@ window.__ModuleLoader__.load({
           .bubble {
             position: absolute;
             max-width: 260px;
-            padding: 8px 12px 7px;
+            padding: 8px 12px;
             border-radius: 12px;
-            background: linear-gradient(160deg, #4d6bfe, #6a83ff);
-            color: #fff;
-            font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-            font-size: 12.5px;
-            line-height: 1.55;
-            box-shadow: 0 8px 22px rgba(31, 51, 138, .32);
+            background: #ffffff;
+            border: 1px solid light-dark(rgba(0, 0, 0, .1), rgba(255, 255, 255, .16));
+            color: #394565;
+            font: 12.5px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+            box-shadow: 0 8px 22px rgba(31, 51, 138, .14);
             opacity: 0;
             transform: translateY(6px);
             transition: opacity .18s ease, transform .18s ease;
@@ -118,27 +127,91 @@ window.__ModuleLoader__.load({
             left: var(--tail, 50%);
             width: 12px; height: 12px;
             transform: translateX(-50%) rotate(45deg);
-            background: #6a83ff;
+            background: #ffffff;
+            border-right: 1px solid light-dark(rgba(0, 0, 0, .1), rgba(255, 255, 255, .16));
+            border-bottom: 1px solid light-dark(rgba(0, 0, 0, .1), rgba(255, 255, 255, .16));
           }
-          .bubble-actions {
-            display: flex;
-            gap: 4px;
-            justify-content: center;
-            margin-top: 6px;
-          }
-          .bubble-actions button {
-            border: 0;
-            border-radius: 10px;
-            padding: 2px 9px;
-            background: rgba(255, 255, 255, .28);
-            color: #fff;
-            font-family: inherit;
-            font-size: 11.5px;
+          .panel {
+            position: absolute;
+            width: 250px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: light-dark(#ffffff, #2b2c31);
+            border: 1px solid light-dark(rgba(0, 0, 0, .08), rgba(255, 255, 255, .14));
+            box-shadow: 0 10px 30px rgba(15, 25, 60, .18);
+            color: light-dark(#1f2a44, #e8eaf6);
+            font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+            font-size: 12.5px;
             line-height: 1.5;
+            pointer-events: auto;
+            display: none;
+          }
+          .panel.show { display: block; }
+          .panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+          }
+          .panel-title { font-weight: 600; font-size: 13px; }
+          .panel-close {
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            color: inherit;
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1;
+          }
+          .panel-close:hover { background: rgba(128, 128, 128, .15); }
+          .panel-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 8px 0;
+          }
+          .panel-label { font-size: 12.5px; }
+          .panel-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: flex-end;
+          }
+          .panel-slider { width: 110px; accent-color: #4d6bfe; }
+          .panel-pct { font-size: 12px; min-width: 36px; text-align: right; opacity: .8; }
+          .panel-collapse {
+            width: 100%;
+            margin-top: 10px;
+            padding: 6px 0;
+            border: 1px solid light-dark(rgba(0, 0, 0, .12), rgba(255, 255, 255, .18));
+            border-radius: 10px;
+            background: transparent;
+            color: inherit;
+            font-family: inherit;
+            font-size: 12.5px;
             cursor: pointer;
           }
-          .bubble-actions button:hover { background: rgba(255, 255, 255, .45); }
-          .bubble-actions button.active { background: #fff; color: #3d5ef0; }
+          .panel-collapse:hover { background: rgba(128, 128, 128, .12); }
+          .pill {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            background: light-dark(#ffffff, #2b2c31);
+            border: 1px solid light-dark(rgba(0, 0, 0, .1), rgba(255, 255, 255, .14));
+            box-shadow: 0 4px 14px rgba(15, 25, 60, .16);
+            color: light-dark(#1f2a44, #e8eaf6);
+            font: 12px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+            cursor: pointer;
+            pointer-events: auto;
+            display: none;
+          }
+          .pill.show { display: block; }
         `;
         root.append(style);
 
@@ -146,30 +219,59 @@ window.__ModuleLoader__.load({
         this.pet.className = 'pet';
         this.pet.setAttribute('role', 'img');
         this.pet.setAttribute('aria-label', 'Saber pet');
+
         this.bubble = document.createElement('div');
         this.bubble.className = 'bubble';
-        this.bubbleText = document.createElement('div');
-        this.bubbleText.className = 'bubble-text';
-        this.bubbleActions = document.createElement('div');
-        this.bubbleActions.className = 'bubble-actions';
-        this.scaleButtons = SCALE_PRESETS.map((preset) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.textContent = preset.label;
-          button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.setScale(preset.value);
-          });
-          this.bubbleActions.append(button);
-          return { preset, button };
-        });
-        root.append(this.bubble, this.pet);
-        this.bubble.append(this.bubbleText, this.bubbleActions);
+
+        this.panel = document.createElement('div');
+        this.panel.className = 'panel';
+        this.panel.setAttribute('role', 'dialog');
+        this.panel.setAttribute('aria-label', 'Saber settings');
+        const head = document.createElement('div');
+        head.className = 'panel-head';
+        const title = document.createElement('span');
+        title.className = 'panel-title';
+        this.panelClose = document.createElement('button');
+        this.panelClose.type = 'button';
+        this.panelClose.className = 'panel-close';
+        this.panelClose.textContent = '✕';
+        this.panelClose.title = '关闭';
+        head.append(title, this.panelClose);
+        this.panelTitleEl = title;
+        const sizeRow = document.createElement('div');
+        sizeRow.className = 'panel-row';
+        const sizeLabel = document.createElement('span');
+        sizeLabel.className = 'panel-label';
+        this.sizeLabelEl = sizeLabel;
+        const sliderWrap = document.createElement('div');
+        sliderWrap.className = 'panel-slider-wrap';
+        this.slider = document.createElement('input');
+        this.slider.type = 'range';
+        this.slider.className = 'panel-slider';
+        this.slider.min = String(Math.round(SCALE_MIN * 100));
+        this.slider.max = String(Math.round(SCALE_MAX * 100));
+        this.slider.step = '5';
+        this.pct = document.createElement('span');
+        this.pct.className = 'panel-pct';
+        sliderWrap.append(this.slider, this.pct);
+        sizeRow.append(sizeLabel, sliderWrap);
+        this.collapseButton = document.createElement('button');
+        this.collapseButton.type = 'button';
+        this.collapseButton.className = 'panel-collapse';
+        this.panel.append(head, sizeRow, this.collapseButton);
+
+        this.pill = document.createElement('button');
+        this.pill.type = 'button';
+        this.pill.className = 'pill';
+        this.pill.setAttribute('aria-label', 'Recall Saber');
+
+        root.append(this.bubble, this.panel, this.pet, this.pill);
 
         this.restoreScale();
         this.restorePosition();
-        this.refreshScaleButtons();
+        this.refreshPanelTexts();
         this.bindEvents();
+        this.restoreCollapsed();
         this.raf = requestAnimationFrame((now) => { this.lastFrame = now; this.tick(now); });
       }
 
@@ -191,7 +293,7 @@ window.__ModuleLoader__.load({
 
       setScale(value) {
         const next = clampScale(value);
-        if (Math.abs(next - this.scale) < 0.001) { this.refreshScaleButtons(); return; }
+        if (Math.abs(next - this.scale) < 0.001) return;
         // 以脚底中心为锚缩放，宠物原地变大变小
         const oldWidth = this.pet.offsetWidth || Math.round(CELL_W * this.scale);
         const oldHeight = this.pet.offsetHeight || Math.round(CELL_H * this.scale);
@@ -204,17 +306,83 @@ window.__ModuleLoader__.load({
         this.clampAndPlace(Math.round(centerX - width / 2), Math.round(bottomY - height), width, height);
         if (this.currentAnim) this.draw(this.currentAnim, this.currentElapsed); // 缩放不打断当前动画
         this.saveScale();
-        this.refreshScaleButtons();
+        this.placeBubble();
+        this.refreshPanelSize();
       }
 
       saveScale() {
         try { localStorage.setItem(SCALE_KEY, String(this.scale)); } catch { /* 忽略 */ }
       }
 
-      refreshScaleButtons() {
-        for (const { preset, button } of this.scaleButtons) {
-          button.classList.toggle('active', Math.abs(this.scale - preset.value) < 0.01);
-        }
+      // ---- 面板 ----
+      refreshPanelTexts() {
+        this.panelTitleEl.textContent = this.t('panelTitle');
+        this.sizeLabelEl.textContent = this.t('sizeLabel');
+        this.collapseButton.textContent = this.t('collapse');
+        this.pill.textContent = this.t('recall');
+        this.refreshPanelSize();
+      }
+
+      refreshPanelSize() {
+        this.slider.value = String(Math.round(this.scale * 100));
+        this.pct.textContent = `${Math.round(this.scale * 100)}%`;
+      }
+
+      showPanel() {
+        if (this.disposed || this.collapsed) return;
+        this.panel.classList.add('show');
+        this.refreshPanelSize();
+        this.placePanel();
+      }
+
+      hidePanel() {
+        this.panel.classList.remove('show');
+      }
+
+      placePanel() {
+        const panelWidth = this.panel.offsetWidth || 250;
+        const panelHeight = this.panel.offsetHeight || 150;
+        const petWidth = this.pet.offsetWidth;
+        const petHeight = this.pet.offsetHeight;
+        // 优先放在宠物右侧，放不下则放左侧，再不行贴窗口边
+        let left = this.x + petWidth + 10;
+        if (left + panelWidth > window.innerWidth - 8) left = this.x - panelWidth - 10;
+        left = Math.max(8, Math.min(window.innerWidth - panelWidth - 8, left));
+        const top = Math.max(8, Math.min(window.innerHeight - panelHeight - 8, this.y + petHeight / 2 - panelHeight / 2));
+        this.panel.style.left = `${left}px`;
+        this.panel.style.top = `${top}px`;
+      }
+
+      // ---- 收起 / 唤回 ----
+      collapse() {
+        if (this.collapsed) return;
+        this.collapsed = true;
+        this.hidePanel();
+        this.bubble.classList.remove('show');
+        this.pet.style.display = 'none';
+        this.pill.textContent = this.t('recall');
+        this.pill.classList.add('show');
+        try { localStorage.setItem(COLLAPSED_KEY, '1'); } catch { /* 忽略 */ }
+      }
+
+      restore() {
+        if (!this.collapsed) return;
+        this.collapsed = false;
+        this.pet.style.display = '';
+        this.pill.classList.remove('show');
+        try { localStorage.removeItem(COLLAPSED_KEY); } catch { /* 忽略 */ }
+        this.playOnce('waving');
+        this.say(this.t('greeting'), 6400);
+      }
+
+      restoreCollapsed() {
+        let collapsed = false;
+        try { collapsed = localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { /* 忽略 */ }
+        if (!collapsed) return;
+        this.collapsed = true;
+        this.pet.style.display = 'none';
+        this.pill.textContent = this.t('recall');
+        this.pill.classList.add('show');
       }
 
       // ---- 位置 ----
@@ -228,7 +396,8 @@ window.__ModuleLoader__.load({
         const width = Math.round(CELL_W * this.scale);
         const height = Math.round(CELL_H * this.scale);
         if (x === null) {
-          x = 28;
+          // 默认停靠窗口右下角
+          x = window.innerWidth - width - 28;
           y = window.innerHeight - height - 24;
         }
         this.clampAndPlace(x, y, width, height);
@@ -270,6 +439,7 @@ window.__ModuleLoader__.load({
             this.lastPointerX = event.clientX;
             this.lastPointerY = event.clientY;
             this.clampAndPlace(this.x + dx, this.y + dy, this.pet.offsetWidth, this.pet.offsetHeight);
+            this.placeBubble();
             return;
           }
           const rect = this.pet.getBoundingClientRect();
@@ -288,16 +458,47 @@ window.__ModuleLoader__.load({
           this.say(this.t('greeting'), 6400);
         };
         this.onWheel = (event) => {
-          if (this.dragging) return;
+          if (this.dragging || this.collapsed) return;
           event.preventDefault();
           this.setScale(this.scale * (event.deltaY > 0 ? 0.9 : 1.1));
         };
-        this.onResize = () => this.clampAndPlace(this.x, this.y, this.pet.offsetWidth, this.pet.offsetHeight);
+        this.onContextMenu = (event) => {
+          if (this.collapsed) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (this.panel.classList.contains('show')) this.hidePanel();
+          else this.showPanel();
+        };
+        this.onPanelClose = () => this.hidePanel();
+        this.onCollapse = () => this.collapse();
+        this.onPillClick = () => this.restore();
+        this.onSliderInput = () => {
+          const percent = Number.parseInt(this.slider.value, 10);
+          if (Number.isFinite(percent)) this.setScale(percent / 100);
+        };
+        this.onGlobalPointerDown = (event) => {
+          // 点击面板与宠物之外的区域时收起面板
+          if (!this.panel.classList.contains('show')) return;
+          const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+          if (path.includes(this.panel) || path.includes(this.pet)) return;
+          this.hidePanel();
+        };
+        this.onResize = () => {
+          this.clampAndPlace(this.x, this.y, this.pet.offsetWidth, this.pet.offsetHeight);
+          this.placeBubble();
+          if (this.panel.classList.contains('show')) this.placePanel();
+        };
         this.pet.addEventListener('pointerdown', this.onPointerDown);
         window.addEventListener('pointermove', this.onPointerMove);
         window.addEventListener('pointerup', this.onPointerUp);
         this.pet.addEventListener('dblclick', this.onDoubleClick);
         this.pet.addEventListener('wheel', this.onWheel, { passive: false });
+        this.pet.addEventListener('contextmenu', this.onContextMenu);
+        this.panelClose.addEventListener('click', this.onPanelClose);
+        this.slider.addEventListener('input', this.onSliderInput);
+        this.collapseButton.addEventListener('click', this.onCollapse);
+        this.pill.addEventListener('click', this.onPillClick);
+        window.addEventListener('pointerdown', this.onGlobalPointerDown, true);
         window.addEventListener('resize', this.onResize);
       }
 
@@ -309,12 +510,21 @@ window.__ModuleLoader__.load({
 
       setLanguage(language) {
         if (STRINGS[language]) this.language = language;
+        this.refreshPanelTexts();
       }
 
       say(text, duration = 4200) {
-        if (this.disposed) return;
-        this.bubbleText.textContent = text;
-        // 气泡贴在宠物上方
+        if (this.disposed || this.collapsed) return;
+        this.bubble.textContent = text;
+        this.bubble.classList.add('show');
+        this.placeBubble();
+        clearTimeout(this.hideTimer);
+        this.hideTimer = setTimeout(() => this.bubble.classList.remove('show'), duration);
+      }
+
+      /** 让可见的气泡跟随宠物当前位置与尺寸（缩放、拖拽后调用）。 */
+      placeBubble() {
+        if (this.disposed || this.collapsed || !this.bubble.classList.contains('show')) return;
         const bubbleWidth = Math.min(260, this.bubble.offsetWidth || 220);
         const petWidth = this.pet.offsetWidth;
         const left = Math.max(4, Math.min(window.innerWidth - bubbleWidth - 8, this.x + petWidth / 2 - bubbleWidth / 2));
@@ -322,9 +532,6 @@ window.__ModuleLoader__.load({
         this.bubble.style.left = `${left}px`;
         this.bubble.style.top = `${Math.max(4, bottom - this.bubble.offsetHeight)}px`;
         this.bubble.style.setProperty('--tail', `${Math.min(90, Math.max(10, (this.x + petWidth / 2 - left)))}px`);
-        this.bubble.classList.add('show');
-        clearTimeout(this.hideTimer);
-        this.hideTimer = setTimeout(() => this.bubble.classList.remove('show'), duration);
       }
 
       // ---- 状态 ----
@@ -365,6 +572,13 @@ window.__ModuleLoader__.load({
 
       tick(now) {
         if (this.disposed) return;
+        if (this.collapsed) {
+          // 收起期间保持时钟，唤回后动画立即正常
+          this.lastFrame = now;
+          this.currentAnim = null;
+          this.raf = requestAnimationFrame((next) => this.tick(next));
+          return;
+        }
         const dt = Math.min(now - this.lastFrame, 120);
         this.lastFrame = now;
 
@@ -414,6 +628,12 @@ window.__ModuleLoader__.load({
         window.removeEventListener('pointerup', this.onPointerUp);
         this.pet.removeEventListener('dblclick', this.onDoubleClick);
         this.pet.removeEventListener('wheel', this.onWheel);
+        this.pet.removeEventListener('contextmenu', this.onContextMenu);
+        this.panelClose.removeEventListener('click', this.onPanelClose);
+        this.slider.removeEventListener('input', this.onSliderInput);
+        this.collapseButton.removeEventListener('click', this.onCollapse);
+        this.pill.removeEventListener('click', this.onPillClick);
+        window.removeEventListener('pointerdown', this.onGlobalPointerDown, true);
         window.removeEventListener('resize', this.onResize);
         this.root.replaceChildren();
       }
