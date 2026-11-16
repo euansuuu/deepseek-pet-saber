@@ -14,9 +14,17 @@
 
 ## 安装
 
-### 方式一：插件市场索引（如已部署）
+### 方式一：npm 包名
 
-插件页 → **发现** 标签 → 选择索引源 → 搜索 **Saber** → 安装。
+1. 侧栏 → **插件** → **添加插件** 旁的箭头 → **安装第三方插件**
+2. 输入包名：
+   ```
+   dsh-plugin-saber-pet
+   ```
+   安装源可选 npm 官方源或「中国大陆镜像源」（npmmirror 已同步本包）
+3. **安装** → **立即启用** → 刷新页面，Saber 出现在窗口左下角
+
+若安装端提示新发布版本风险（供应链策略对刚上架版本的检查），确认后即可正常安装。
 
 ### 方式二：Git 地址
 
@@ -30,6 +38,10 @@
 ### 方式三：本地目录（开发者）
 
 克隆本仓库，在「安装第三方插件」中输入克隆路径。本地目录安装以链接方式接入，修改代码后刷新页面即可生效。
+
+### 方式四：插件市场索引（如已部署）
+
+插件页 → **发现** 标签 → 选择索引源 → 搜索 **Saber** → 安装。
 
 ## 交互与状态
 
@@ -54,27 +66,6 @@
 `status.running === true` 判为工作中，`waiting/pending/pendingInteraction` 判为等待中。
 庆祝动作由「工作转为空闲」触发；客户端区分不了正常完成、取消和失败，所以统一按完成庆祝。
 需要精确的完成原因（`turn/end` 的 `reason.kind`）时，要加宿主 typert 远程桥，计划在 v2 实现。
-
-## 开发
-
-```powershell
-# 修改 client.template.js 后重新构建 client.js
-node tools/build-client.cjs
-
-# 打包检查
-pnpm pack
-```
-
-| 文件 | 职责 |
-| --- | --- |
-| `package.json` | bundle 清单：`dsh.bundle.patch` + `dsh.client`（platform/immediately/inject） |
-| `cordis.patch.yml` | 只插入一行 `saber-pet` 插件，不覆盖任何官方组件 |
-| `index.js` | Host 半（空实现，渲染全部在 Client） |
-| `client.js` | Client 半：`shell.overlay` 槽位 + Shadow DOM 桌宠（构建产物，勿手改） |
-| `client.template.js` | Client 源码（`__SPRITESHEET_DATA_URL__` 占位符） |
-| `assets/` | 图标与精灵表（WebP） |
-| `docs/` | 详情页文档与封面（中英） |
-| `locale/` | 展示元信息与文案（en/zh） |
 
 ## 兼容性
 
