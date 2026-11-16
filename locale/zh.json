@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Saber 桌宠",
+    "description": "栖息在 Harness 窗口里的精灵动画骑士助手，随会话状态起舞。双击宠物可问候，拖动可移动；会话运行时挥剑执行，回合结束举剑庆祝。",
+    "detail": "docs/DETAIL.zh.md"
+  }
+}

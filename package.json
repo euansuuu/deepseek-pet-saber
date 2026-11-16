@@ -1,0 +1,61 @@
+{
+  "name": "dsh-plugin-saber-pet",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Saber 桌宠：栖息在 DeepSeek Harness 窗口里的精灵动画骑士助手，随会话状态起舞。",
+  "license": "MIT",
+  "author": "euansuuu",
+  "homepage": "https://github.com/euansuuu/deepseek-pet-saber#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/euansuuu/dsh-plugin-saber-pet.git"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "pet",
+    "saber",
+    "companion",
+    "spritesheet",
+    "cordis",
+    "plugin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "icon": "./assets/icon.png",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/en.json",
+    "locale/zh.json",
+    "assets/icon.png",
+    "assets/spritesheet.webp",
+    "docs/DETAIL.md",
+    "docs/DETAIL.zh.md",
+    "docs/preview.png",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

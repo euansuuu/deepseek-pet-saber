@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Saber Pet",
+    "description": "A spritesheet-animated knight companion in the Harness window; reacts to session activity. Double-click the pet to greet, drag to move it; it swings the sword while a session runs and celebrates when a turn finishes.",
+    "detail": "docs/DETAIL.md"
+  }
+}
