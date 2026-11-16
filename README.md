@@ -1,9 +1,6 @@
 # dsh-plugin-saber-pet
 
 在 DeepSeek Harness 窗口内显示的 Saber 桌宠插件（cordis bundle）。
-动画引擎与角色素材来自 [codex-saber](https://github.com/euansuuu/codex-saber)（本人项目）。
-
-> 本仓库就是插件包：仓库根即包根，只包含插件相关内容。
 
 ## 功能
 
