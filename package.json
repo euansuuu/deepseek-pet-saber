@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-saber-pet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Saber 桌宠：栖息在 DeepSeek Harness 窗口里的精灵动画骑士助手，随会话状态起舞。",
   "license": "MIT",
